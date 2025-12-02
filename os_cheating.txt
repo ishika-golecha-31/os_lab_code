@@ -1,0 +1,923 @@
+Write a shell script to check whether entered number is prime number. 
+#!/bin/bash
+
+echo -n "Enter a number: "
+read num
+
+if [ $num -le 1 ]; then
+    echo "$num is NOT a prime number."
+    exit
+fi
+
+flag=0
+
+for ((i=2; i<=num/2; i++))
+do
+    if [ $((num % i)) -eq 0 ]; then
+        flag=1
+        break
+    fi
+done
+
+if [ $flag -eq 1 ]; then
+    echo "$num is NOT a prime number."
+else
+    echo "$num IS a prime number."
+fi
+
+
+
+
+
+Write a shell script to check whether entered string is palindrome. 
+
+#!/bin/bash
+
+echo -n "Enter a string: "
+read str
+
+len=${#str}
+rev=""
+
+# Reverse the string manually
+for (( i=$len-1; i>=0; i-- ))
+do
+    rev="$rev${str:$i:1}"
+done
+
+if [ "$str" == "$rev" ]; then
+    echo "\"$str\" is a palindrome."
+else
+    echo "\"$str\" is NOT a palindrome."
+fi
+
+
+
+
+
+Implementation of Classical Reader Writer problem using Threads and Mutex. 
+
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+pthread_mutex_t mutex;       // mutex for readcount
+pthread_mutex_t wrt;         // mutex for writer
+int readcount = 0;           // number of active readers
+
+void *reader(void *arg) {
+    int id = *(int *)arg;
+
+    while (1) {
+        // Entry section
+        pthread_mutex_lock(&mutex);
+        readcount++;
+        if (readcount == 1)
+            pthread_mutex_lock(&wrt);   // First reader locks writers
+        pthread_mutex_unlock(&mutex);
+
+        // Critical section
+        printf("Reader %d is READING...\n", id);
+        sleep(1);
+
+        // Exit section
+        pthread_mutex_lock(&mutex);
+        readcount--;
+        if (readcount == 0)
+            pthread_mutex_unlock(&wrt); // Last reader unlocks writers
+        pthread_mutex_unlock(&mutex);
+
+        sleep(1);
+    }
+}
+
+void *writer(void *arg) {
+    int id = *(int *)arg;
+
+    while (1) {
+        pthread_mutex_lock(&wrt);  // Writers need exclusive access
+
+        // Critical section
+        printf("Writer %d is WRITING...\n", id);
+        sleep(2);
+
+        pthread_mutex_unlock(&wrt);
+
+        sleep(1);
+    }
+}
+
+int main() {
+    pthread_t r[5], w[5];
+    int r_id[5], w_id[5];
+
+    pthread_mutex_init(&mutex, NULL);
+    pthread_mutex_init(&wrt, NULL);
+
+    // Create reader threads
+    for (int i = 0; i < 3; i++) {
+        r_id[i] = i + 1;
+        pthread_create(&r[i], NULL, reader, &r_id[i]);
+    }
+
+    // Create writer threads
+    for (int i = 0; i < 2; i++) {
+        w_id[i] = i + 1;
+        pthread_create(&w[i], NULL, writer, &w_id[i]);
+    }
+
+    // Join threads (never ending)
+    for (int i = 0; i < 3; i++)
+        pthread_join(r[i], NULL);
+
+    for (int i = 0; i < 2; i++)
+        pthread_join(w[i], NULL);
+
+    pthread_mutex_destroy(&mutex);
+    pthread_mutex_destroy(&wrt);
+
+    return 0;
+}
+
+
+
+
+
+Write a program demonstrating use of different system calls.  1) process related system call:fork,wait,  2) file related:open ,read,write,close 
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+
+int main() {
+    int pid;
+
+    // -------------------------- FILE SYSTEM CALLS --------------------------
+    int fd;
+    char buff[100];
+
+    // Open a file (create if not exists)
+    fd = open("testfile.txt", O_CREAT | O_RDWR, 0644);
+    if (fd < 0) {
+        perror("open");
+        exit(1);
+    }
+
+    // Write to file
+    char data[] = "Hello! This is a system call Demo.\n";
+    write(fd, data, sizeof(data));
+
+    // Move file pointer to beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Read the file
+    read(fd, buff, sizeof(buff));
+    printf("File contents:\n%s\n", buff);
+
+    close(fd);   // Close the file descriptor
+
+    // ----------------------- PROCESS SYSTEM CALLS ---------------------------
+    pid = fork();   // Create a child process
+
+    if (pid < 0) {
+        perror("fork");
+        exit(1);
+    }
+
+    // Child Process
+    if (pid == 0) {
+        printf("Child Process: PID = %d, Parent PID = %d\n", getpid(), getppid());
+        exit(0);
+    }
+
+    // Parent Process
+    else {
+        wait(NULL);   // Parent waits for child to finish
+        printf("Parent Process: Child completed\n");
+    }
+
+    return 0;
+}
+
+
+
+
+
+Implementation of Classical problems Producer Consumer using Threads and Semaphore. 
+
+#include <stdio.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 5
+
+int buffer[BUFFER_SIZE];
+int in = 0, out = 0;
+
+sem_t empty;   // Counts empty slots
+sem_t full;    // Counts filled slots
+pthread_mutex_t mutex;   // To protect critical section
+
+void *producer(void *arg) {
+    int item = 0;
+
+    while (1) {
+        item++;
+
+        // Wait if buffer is full
+        sem_wait(&empty);
+
+        // Enter critical section
+        pthread_mutex_lock(&mutex);
+
+        buffer[in] = item;
+        printf("Producer produced: %d\n", item);
+        in = (in + 1) % BUFFER_SIZE;
+
+        pthread_mutex_unlock(&mutex);
+        sem_post(&full);  // Increment count of filled slots
+
+        sleep(1);
+    }
+}
+
+void *consumer(void *arg) {
+    int item;
+
+    while (1) {
+        // Wait if buffer is empty
+        sem_wait(&full);
+
+        // Enter critical section
+        pthread_mutex_lock(&mutex);
+
+        item = buffer[out];
+        printf("Consumer consumed: %d\n", item);
+        out = (out + 1) % BUFFER_SIZE;
+
+        pthread_mutex_unlock(&mutex);
+        sem_post(&empty);  // Increment count of empty slots
+
+        sleep(2);
+    }
+}
+
+int main() {
+    pthread_t prodThread, consThread;
+
+    // Initialize semaphores and mutex
+    sem_init(&empty, 0, BUFFER_SIZE);
+    sem_init(&full, 0, 0);
+    pthread_mutex_init(&mutex, NULL);
+
+    pthread_create(&prodThread, NULL, producer, NULL);
+    pthread_create(&consThread, NULL, consumer, NULL);
+
+    pthread_join(prodThread, NULL);
+    pthread_join(consThread, NULL);
+
+    sem_destroy(&empty);
+    sem_destroy(&full);
+    pthread_mutex_destroy(&mutex);
+
+    return 0;
+}
+
+
+
+
+
+Write a program to compute the finish time, turnaround time and waiting time for FCFS algorithm. 
+
+
+#include <stdio.h>
+
+int main() {
+    int n;
+    printf("Enter number of processes: ");
+    scanf("%d", &n);
+
+    int bt[n], at[n], ft[n], tat[n], wt[n];
+
+    // Input
+    for(int i = 0; i < n; i++) {
+        printf("Enter Arrival Time and Burst Time for Process P%d: ", i+1);
+        scanf("%d %d", &at[i], &bt[i]);
+    }
+
+    // Sort according to arrival time (FCFS)
+    for(int i = 0; i < n; i++) {
+        for(int j = i + 1; j < n; j++) {
+            if(at[j] < at[i]) {
+                int temp = at[i];
+                at[i] = at[j];
+                at[j] = temp;
+
+                temp = bt[i];
+                bt[i] = bt[j];
+                bt[j] = temp;
+            }
+        }
+    }
+
+    // Calculate finish time, TAT, WT
+    ft[0] = at[0] + bt[0];
+
+    for(int i = 1; i < n; i++) {
+        // CPU waits if next process arrives late
+        if(ft[i-1] < at[i])
+            ft[i] = at[i] + bt[i];
+        else
+            ft[i] = ft[i-1] + bt[i];
+    }
+
+    // Turnaround time = FT - AT
+    // Waiting time     = TAT - BT
+    for(int i = 0; i < n; i++) {
+        tat[i] = ft[i] - at[i];
+        wt[i] = tat[i] - bt[i];
+    }
+
+    // Output Table
+    printf("\n-----------------------------------------------------\n");
+    printf("Process\tAT\tBT\tFT\tTAT\tWT\n");
+    printf("-----------------------------------------------------\n");
+
+    for(int i = 0; i < n; i++) {
+        printf("P%d\t%d\t%d\t%d\t%d\t%d\n",
+               i+1, at[i], bt[i], ft[i], tat[i], wt[i]);
+    }
+
+    return 0;
+}
+
+
+
+Write a program to compute the finish time, turnaround time and waiting time for SJF algorithm. 
+
+#include <stdio.h>
+
+int main() {
+    int n;
+    printf("Enter number of processes: ");
+    scanf("%d", &n);
+
+    int at[n], bt[n], ft[n], tat[n], wt[n], completed[n];
+    int completedCount = 0, time = 0;
+
+    // Input
+    for(int i = 0; i < n; i++) {
+        printf("Enter Arrival Time and Burst Time for P%d: ", i+1);
+        scanf("%d %d", &at[i], &bt[i]);
+        completed[i] = 0;
+    }
+
+    while(completedCount < n) {
+        int idx = -1;
+        int minBT = 9999;
+
+        // Find shortest job among arrived processes
+        for(int i = 0; i < n; i++) {
+            if(at[i] <= time && completed[i] == 0) {
+                if(bt[i] < minBT) {
+                    minBT = bt[i];
+                    idx = i;
+                }
+            }
+        }
+
+        // If no process has arrived yet → move time forward
+        if(idx == -1) {
+            time++;
+            continue;
+        }
+
+        // Process execution
+        time += bt[idx];
+        ft[idx] = time;
+        completed[idx] = 1;
+        completedCount++;
+    }
+
+    // Calculate TAT and WT
+    for(int i = 0; i < n; i++) {
+        tat[i] = ft[i] - at[i];
+        wt[i] = tat[i] - bt[i];
+    }
+
+    // Output Table
+    printf("\n---------------------------------------------------------------\n");
+    printf("Process\tAT\tBT\tFT\tTAT\tWT\n");
+    printf("---------------------------------------------------------------\n");
+
+    for(int i = 0; i < n; i++) {
+        printf("P%d\t%d\t%d\t%d\t%d\t%d\n",
+               i+1, at[i], bt[i], ft[i], tat[i], wt[i]);
+    }
+
+    return 0;
+}
+
+
+
+Write a program to compute the finish time, turnaround time and waiting time for Round Robin algorithm. 
+
+#include <stdio.h>
+
+int main() {
+    int n, tq;
+    printf("Enter number of processes: ");
+    scanf("%d", &n);
+
+    int at[n], bt[n], rt[n], ft[n], tat[n], wt[n];
+    
+    printf("Enter Time Quantum: ");
+    scanf("%d", &tq);
+
+    // Input Arrival & Burst Times
+    for(int i = 0; i < n; i++) {
+        printf("Enter Arrival Time and Burst Time for P%d: ", i+1);
+        scanf("%d %d", &at[i], &bt[i]);
+        rt[i] = bt[i]; // Remaining Time initially = Burst Time
+        ft[i] = 0;
+    }
+
+    int time = 0, completed = 0;
+
+    while(completed < n) {
+        int doneSomething = 0;
+
+        for(int i = 0; i < n; i++) {
+            if(at[i] <= time && rt[i] > 0) {
+                doneSomething = 1;
+
+                // Process can be executed for at least 1 time unit
+                if(rt[i] > tq) {
+                    time += tq;
+                    rt[i] -= tq;
+                } else {
+                    // Process completes
+                    time += rt[i];
+                    rt[i] = 0;
+                    ft[i] = time;   // Finish time
+                    completed++;
+                }
+            }
+        }
+
+        // If CPU was idle (no process arrived yet)
+        if(doneSomething == 0)
+            time++;
+    }
+
+    // Calculate TAT and WT
+    for(int i = 0; i < n; i++) {
+        tat[i] = ft[i] - at[i];
+        wt[i] = tat[i] - bt[i];
+    }
+
+    printf("\n--------------------------------------------------------------\n");
+    printf("Process\tAT\tBT\tFT\tTAT\tWT\n");
+    printf("--------------------------------------------------------------\n");
+
+    for(int i = 0; i < n; i++) {
+        printf("P%d\t%d\t%d\t%d\t%d\t%d\n",
+               i+1, at[i], bt[i], ft[i], tat[i], wt[i]);
+    }
+
+    return 0;
+}
+
+
+Write a program to compute the finish time, turnaround time and waiting time for Non-preemptive priority scheduling algorithm. 
+
+#include <stdio.h>
+
+int main() {
+    int n;
+    printf("Enter number of processes: ");
+    scanf("%d", &n);
+
+    int at[n], bt[n], pr[n], ft[n], tat[n], wt[n], completed[n];
+    int time = 0, completedCount = 0;
+
+    // Input
+    for (int i = 0; i < n; i++) {
+        printf("Enter Arrival Time, Burst Time, and Priority for P%d: ", i+1);
+        scanf("%d %d %d", &at[i], &bt[i], &pr[i]);
+        completed[i] = 0;
+    }
+
+    while (completedCount < n) {
+        int idx = -1;
+        int bestPriority = 9999;
+
+        // Find the highest priority among arrived + not completed processes
+        for (int i = 0; i < n; i++) {
+            if (at[i] <= time && completed[i] == 0) {
+                if (pr[i] < bestPriority) { // lower number = higher priority
+                    bestPriority = pr[i];
+                    idx = i;
+                }
+            }
+        }
+
+        // If no process has arrived yet, move time forward
+        if (idx == -1) {
+            time++;
+            continue;
+        }
+
+        // Process executes completely (non-preemptive)
+        time += bt[idx];
+        ft[idx] = time;
+        completed[idx] = 1;
+        completedCount++;
+    }
+
+    // Calculate TAT and WT
+    for (int i = 0; i < n; i++) {
+        tat[i] = ft[i] - at[i];
+        wt[i] = tat[i] - bt[i];
+    }
+
+    // Output
+    printf("\n--------------------------------------------------------------\n");
+    printf("Process\tAT\tBT\tPR\tFT\tTAT\tWT\n");
+    printf("--------------------------------------------------------------\n");
+
+    for (int i = 0; i < n; i++) {
+        printf("P%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+               i+1, at[i], bt[i], pr[i], ft[i], tat[i], wt[i]);
+    }
+
+    return 0;
+}
+
+
+
+
+Write a program to compute the finish time, turnaround time and waiting time for preemptive priority scheduling algorithm. 
+
+
+#include <stdio.h>
+
+int main() {
+    int n;
+    printf("Enter number of processes: ");
+    scanf("%d", &n);
+
+    int at[n], bt[n], pr[n], rt[n], ft[n], tat[n], wt[n];
+    int completed = 0, time = 0;
+
+    // Input
+    for (int i = 0; i < n; i++) {
+        printf("Enter Arrival Time, Burst Time, and Priority for P%d: ", i+1);
+        scanf("%d %d %d", &at[i], &bt[i], &pr[i]);
+        rt[i] = bt[i]; // Remaining time initially burst time
+        ft[i] = 0;
+    }
+
+    while (completed < n) {
+        int idx = -1;
+        int bestPriority = 9999;
+
+        // Find the highest priority among ready processes
+        for (int i = 0; i < n; i++) {
+            if (at[i] <= time && rt[i] > 0) {
+                if (pr[i] < bestPriority) { // lower number = higher priority
+                    bestPriority = pr[i];
+                    idx = i;
+                }
+            }
+        }
+
+        // If no process has arrived → idle CPU
+        if (idx == -1) {
+            time++;
+            continue;
+        }
+
+        // Execute process for 1 unit (PREEMPTIVE)
+        rt[idx]--;
+        time++;
+
+        // If finished
+        if (rt[idx] == 0) {
+            ft[idx] = time;
+            completed++;
+        }
+    }
+
+    // Calculate TAT & WT
+    for (int i = 0; i < n; i++) {
+        tat[i] = ft[i] - at[i];
+        wt[i] = tat[i] - bt[i];
+    }
+
+    // Output
+    printf("\n----------------------------------------------------------------\n");
+    printf("Process\tAT\tBT\tPR\tFT\tTAT\tWT\n");
+    printf("----------------------------------------------------------------\n");
+
+    for (int i = 0; i < n; i++) {
+        printf("P%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+               i+1, at[i], bt[i], pr[i], ft[i], tat[i], wt[i]);
+    }
+
+    return 0;
+}
+
+
+
+Write a program to calculate the number of page faults for a reference string for FIFO page replacement algorithm. 
+
+#include <stdio.h>
+
+int main() {
+    int n, f;
+
+    printf("Enter number of pages in reference string: ");
+    scanf("%d", &n);
+
+    int pages[n];
+    printf("Enter the reference string:\n");
+    for(int i = 0; i < n; i++)
+        scanf("%d", &pages[i]);
+
+    printf("Enter number of frames: ");
+    scanf("%d", &f);
+
+    int frames[f];
+    for(int i = 0; i < f; i++)
+        frames[i] = -1;   // empty frames
+
+    int pageFaults = 0;
+    int index = 0;        // FIFO pointer
+
+    for(int i = 0; i < n; i++) {
+        int found = 0;
+
+        // Check if page already in frame
+        for(int j = 0; j < f; j++) {
+            if(frames[j] == pages[i]) {
+                found = 1;  // page hit
+                break;
+            }
+        }
+
+        // If page not found → Page Fault
+        if(found == 0) {
+            frames[index] = pages[i];   // replace using FIFO
+            index = (index + 1) % f;    // move pointer
+            pageFaults++;
+        }
+    }
+
+    printf("\nTotal Page Faults = %d\n", pageFaults);
+
+    return 0;
+}
+
+
+
+Write a program to calculate the number of page faults for a reference string for LRU page replacement algorithm. 
+
+#include <stdio.h>
+
+int main() {
+    int n, f;
+
+    printf("Enter number of pages in reference string: ");
+    scanf("%d", &n);
+
+    int pages[n];
+    printf("Enter the reference string:\n");
+    for (int i = 0; i < n; i++)
+        scanf("%d", &pages[i]);
+
+    printf("Enter number of frames: ");
+    scanf("%d", &f);
+
+    int frames[f], used[f];
+    for (int i = 0; i < f; i++) {
+        frames[i] = -1;  // empty frame
+        used[i] = 0;     // last used time
+    }
+
+    int pageFaults = 0, time = 0;
+
+    for (int i = 0; i < n; i++) {
+        int page = pages[i];
+        int found = 0;
+
+        // Step 1: Check if the page is already in frames
+        for (int j = 0; j < f; j++) {
+            if (frames[j] == page) {
+                found = 1;
+                used[j] = time++;  // update last used time
+                break;
+            }
+        }
+
+        // Step 2: If page NOT found → page fault
+        if (!found) {
+            int lruIndex = 0;
+
+            // Find the LRU page (smallest used[] time)
+            for (int j = 1; j < f; j++) {
+                if (frames[j] == -1) { // empty frame available
+                    lruIndex = j;
+                    break;
+                }
+                if (used[j] < used[lruIndex])
+                    lruIndex = j;
+            }
+
+            frames[lruIndex] = page;
+            used[lruIndex] = time++;  // set last used time
+            pageFaults++;
+        }
+    }
+
+    printf("\nTotal Page Faults = %d\n", pageFaults);
+
+    return 0;
+}
+
+
+
+Write a program to calculate the number of page faults for a reference string for optimal page replacement algorithm. 
+
+#include <stdio.h>
+
+int main() {
+    int n, f;
+
+    printf("Enter number of pages in reference string: ");
+    scanf("%d", &n);
+
+    int pages[n];
+    printf("Enter the reference string:\n");
+    for (int i = 0; i < n; i++)
+        scanf("%d", &pages[i]);
+
+    printf("Enter number of frames: ");
+    scanf("%d", &f);
+
+    int frames[f];
+    for (int i = 0; i < f; i++)
+        frames[i] = -1;   // empty frames
+
+    int pageFaults = 0;
+
+    for (int i = 0; i < n; i++) {
+        int page = pages[i];
+        int found = 0;
+
+        // Step 1: Check if page already exists in frame
+        for (int j = 0; j < f; j++) {
+            if (frames[j] == page) {
+                found = 1;
+                break;
+            }
+        }
+
+        // Step 2: If page not found → Page Fault
+        if (!found) {
+            int replaceIndex = -1, farthest = -1;
+
+            // Check for an empty frame
+            for (int j = 0; j < f; j++) {
+                if (frames[j] == -1) {
+                    replaceIndex = j;
+                    break;
+                }
+            }
+
+            // No empty frame → Find page used farthest in future
+            if (replaceIndex == -1) {
+                for (int j = 0; j < f; j++) {
+                    int nextUse = 9999;
+
+                    for (int k = i + 1; k < n; k++) {
+                        if (frames[j] == pages[k]) {
+                            nextUse = k;
+                            break;
+                        }
+                    }
+
+                    if (nextUse > farthest) {
+                        farthest = nextUse;
+                        replaceIndex = j;
+                    }
+                }
+            }
+
+            // Replace page
+            frames[replaceIndex] = page;
+            pageFaults++;
+        }
+    }
+
+    printf("\nTotal Page Faults = %d\n", pageFaults);
+
+    return 0;
+}
+
+
+
+Implement Bankers algorithm for deadlock avoidance and find out a safe sequence for processes. 
+
+#include <stdio.h>
+
+int main() {
+    int n, m;
+
+    printf("Enter number of processes: ");
+    scanf("%d", &n);
+
+    printf("Enter number of resource types: ");
+    scanf("%d", &m);
+
+    int alloc[n][m], max[n][m], avail[m], need[n][m];
+    int finish[n], safeSeq[n];
+
+    // Input Allocation Matrix
+    printf("\nEnter Allocation Matrix:\n");
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < m; j++)
+            scanf("%d", &alloc[i][j]);
+
+    // Input Max Matrix
+    printf("\nEnter Max Matrix:\n");
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < m; j++)
+            scanf("%d", &max[i][j]);
+
+    // Input Available Resources
+    printf("\nEnter Available Resources:\n");
+    for (int i = 0; i < m; i++)
+        scanf("%d", &avail[i]);
+
+    // Calculate Need Matrix
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < m; j++)
+            need[i][j] = max[i][j] - alloc[i][j];
+
+    // Initialize Finish array
+    for (int i = 0; i < n; i++)
+        finish[i] = 0;
+
+    int count = 0;  // to track safe sequence index
+
+    // Main Banker's Algorithm
+    while (count < n) {
+        int found = 0;
+
+        for (int i = 0; i < n; i++) {
+            if (finish[i] == 0) {
+                int canExecute = 1;
+
+                for (int j = 0; j < m; j++) {
+                    if (need[i][j] > avail[j]) {
+                        canExecute = 0;
+                        break;
+                    }
+                }
+
+                if (canExecute) {
+                    // Add to safe sequence
+                    safeSeq[count++] = i;
+                    finish[i] = 1;
+
+                    // Release allocated resources
+                    for (int j = 0; j < m; j++)
+                        avail[j] += alloc[i][j];
+
+                    found = 1;
+                }
+            }
+        }
+
+        // No process could be allocated → Deadlock
+        if (!found) {
+            printf("\nSystem is NOT in a safe state (Deadlock possible).\n");
+            return 0;
+        }
+    }
+
+    // If safe
+    printf("\nSystem is in a SAFE STATE.\nSafe Sequence: ");
+    for (int i = 0; i < n; i++)
+        printf("P%d ", safeSeq[i]);
+
+    printf("\n");
+    return 0;
+}
+
+
+
